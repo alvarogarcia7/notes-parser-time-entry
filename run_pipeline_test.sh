@@ -189,17 +189,24 @@ else
         nats:latest >/dev/null 2>&1
 
     # Wait for NATS to be ready
+    NATS_READY=0
     for i in {1..30}; do
         if nc -z localhost $NATS_PORT 2>/dev/null; then
             print_success "NATS started and ready"
+            NATS_READY=1
             break
-        fi
-        if [ $i -eq 30 ]; then
-            print_error "NATS failed to start"
-            exit 1
         fi
         sleep 0.5
     done
+
+    if [ $NATS_READY -eq 0 ]; then
+        print_error "NATS failed to start after 15 seconds"
+        echo -e "\n${YELLOW}Docker container status:${NC}"
+        docker ps -a --filter "name=$NATS_CONTAINER" --format "table {{.Names}}\t{{.Status}}"
+        echo -e "\n${YELLOW}Docker logs:${NC}"
+        docker logs "$NATS_CONTAINER" 2>/dev/null | tail -20 || echo "  (no logs available)"
+        exit 1
+    fi
 fi
 
 # Start all components
