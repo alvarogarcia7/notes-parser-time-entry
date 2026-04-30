@@ -72,6 +72,33 @@ print_error() {
     echo -e "${RED}✗ $1${NC}"
 }
 
+# Check if a port is open (works without nc)
+is_port_open() {
+    local port=$1
+
+    # Try nc first if available
+    if command -v nc &> /dev/null; then
+        nc -z localhost "$port" 2>/dev/null && return 0
+    fi
+
+    # Try bash built-in /dev/tcp
+    if (echo > /dev/tcp/localhost/"$port") 2>/dev/null; then
+        return 0
+    fi
+
+    # Fallback: try curl if available
+    if command -v curl &> /dev/null; then
+        curl -s http://localhost:"$port"/varz > /dev/null 2>&1 && return 0
+    fi
+
+    # Last resort: check docker container status
+    if docker ps --filter "name=$NATS_CONTAINER" --format "{{.State}}" 2>/dev/null | grep -q "running"; then
+        return 0
+    fi
+
+    return 1
+}
+
 # Clean up any previous resources
 print_header "Cleanup Previous Resources"
 
@@ -179,7 +206,7 @@ print_header "Starting NATS"
 print_step "Checking if NATS is already running..."
 if docker ps --format '{{.Names}}' | grep -q "^${NATS_CONTAINER}$"; then
     print_success "NATS already running"
-elif nc -z localhost $NATS_PORT 2>/dev/null; then
+elif is_port_open $NATS_PORT; then
     print_success "NATS already running on port $NATS_PORT"
 else
     print_step "Starting NATS in Docker..."
@@ -191,7 +218,7 @@ else
     # Wait for NATS to be ready
     NATS_READY=0
     for i in {1..30}; do
-        if nc -z localhost $NATS_PORT 2>/dev/null; then
+        if is_port_open $NATS_PORT; then
             print_success "NATS started and ready"
             NATS_READY=1
             break
