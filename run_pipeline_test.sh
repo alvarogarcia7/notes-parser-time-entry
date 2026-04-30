@@ -200,6 +200,45 @@ if [ $SAMPLE_FILES -eq 0 ]; then
 fi
 print_success "Found $SAMPLE_FILES sample JSON files"
 
+# Install dependencies
+print_header "Installing Dependencies"
+
+print_step "Installing google-keep-notes-parser dependencies..."
+cd "$REPO_ROOT/google-keep-notes-parser"
+pip install -e . > /tmp/pip_publisher.log 2>&1
+if [ $? -eq 0 ]; then
+    print_success "google-keep-notes-parser installed"
+else
+    print_error "Failed to install google-keep-notes-parser"
+    echo "Log: /tmp/pip_publisher.log"
+    tail -20 /tmp/pip_publisher.log
+    exit 1
+fi
+
+print_step "Installing training-parser-antlr4 dependencies..."
+cd "$REPO_ROOT/training-parser-antlr4"
+pip install -e . > /tmp/pip_listener.log 2>&1
+if [ $? -eq 0 ]; then
+    print_success "training-parser-antlr4 installed"
+else
+    print_error "Failed to install training-parser-antlr4"
+    echo "Log: /tmp/pip_listener.log"
+    tail -20 /tmp/pip_listener.log
+    exit 1
+fi
+
+# Install nats-py if not already installed
+print_step "Installing NATS client library..."
+pip install 'nats-py>=2.6.0' > /tmp/pip_nats.log 2>&1
+if [ $? -eq 0 ]; then
+    print_success "NATS client library installed"
+else
+    print_error "Failed to install NATS client library"
+    echo "Log: /tmp/pip_nats.log"
+    tail -20 /tmp/pip_nats.log
+    exit 1
+fi
+
 # Start NATS
 print_header "Starting NATS"
 
