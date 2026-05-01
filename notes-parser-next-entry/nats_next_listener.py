@@ -7,6 +7,7 @@ Subscribes to next entry messages, parses them, and publishes structured results
 import asyncio
 import json
 import os
+import ssl
 import sys
 import uuid
 from dataclasses import asdict
@@ -17,7 +18,19 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 import nats
 from next_parser import NextParser
 
-NATS_URL = os.environ.get("NATS_URL", "nats://docker:4222")
+NATS_URL = os.environ.get("NATS_URL", "tls://docker:4222")
+CERTS_DIR = os.environ.get("CERTS_DIR", "/tmp/nats-certs")
+
+
+def _make_ssl_ctx() -> ssl.SSLContext:
+    """Create SSL context with client certificate for mTLS."""
+    ctx = ssl.create_default_context()
+    ctx.load_verify_locations(cafile=f"{CERTS_DIR}/rootCA.pem")
+    ctx.load_cert_chain(
+        certfile=f"{CERTS_DIR}/client.pem",
+        keyfile=f"{CERTS_DIR}/client.key"
+    )
+    return ctx
 INPUT_TOPIC = "messages.20.type.next"
 OUTPUT_TOPIC = "messages.30.type.next.10.parsed"
 
@@ -54,9 +67,10 @@ async def parse_and_publish(message_data: dict, nc):
 
 
 async def _connect_with_retry(url: str) -> nats.aio.client.Client:
+    ssl_ctx = _make_ssl_ctx()
     for attempt in range(5):
         try:
-            return await nats.connect(url, connect_timeout=2)
+            return await nats.connect(url, tls=ssl_ctx, connect_timeout=2)
         except Exception as e:
             if attempt < 4:
                 print(f"Connection attempt {attempt + 1}/5 failed, retrying in 1s...")

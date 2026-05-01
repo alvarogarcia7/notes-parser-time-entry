@@ -11,8 +11,9 @@ NC='\033[0m'
 # Configuration
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NATS_PORT=4222
-NATS_URL="nats://docker:$NATS_PORT"
+NATS_URL="tls://docker:$NATS_PORT"
 NATS_CONTAINER="nats-pipeline-test"
+CERTS_DIR="$REPO_ROOT/certs"
 TRAINING_OUTPUT_DIR="/tmp/training"
 TIME_ENTRIES_OUTPUT_DIR="/tmp/time-entries"
 NEXT_OUTPUT_DIR="/tmp/next-entries"
@@ -175,6 +176,28 @@ mkdir -p "$TRAINING_OUTPUT_DIR" "$TIME_ENTRIES_OUTPUT_DIR" "$NEXT_OUTPUT_DIR"
 print_success "Output directories cleaned"
 
 sleep 1
+
+# Generate TLS certificates if needed
+print_header "TLS Certificate Setup"
+
+print_step "Checking for TLS certificates..."
+if [ ! -f "$CERTS_DIR/rootCA.pem" ] || [ ! -f "$CERTS_DIR/client.pem" ] || [ ! -f "$CERTS_DIR/server.pem" ]; then
+    print_step "Generating TLS certificates..."
+    bash "$REPO_ROOT/gen-certs.sh"
+    print_success "TLS certificates generated"
+else
+    print_success "TLS certificates already present, reusing"
+fi
+
+# Check certificates exist
+if [ ! -f "$CERTS_DIR/rootCA.pem" ] || [ ! -f "$CERTS_DIR/client.pem" ] || [ ! -f "$CERTS_DIR/server.pem" ]; then
+    print_error "Failed to generate or locate TLS certificates"
+    exit 1
+fi
+print_success "All required certificates present"
+
+# Export for subprocesses
+export CERTS_DIR
 
 # Check prerequisites
 print_header "Prerequisites Check"
@@ -357,11 +380,14 @@ if docker ps --format '{{.Names}}' | grep -q "^${NATS_CONTAINER}$"; then
 elif is_port_open $NATS_PORT; then
     print_success "NATS already running on port $NATS_PORT"
 else
-    print_step "Starting NATS in Docker..."
+    print_step "Starting NATS in Docker with TLS..."
     docker run -d \
         --name "$NATS_CONTAINER" \
         -p "$NATS_PORT:4222" \
-        nats:latest >/dev/null 2>&1
+        -v "$CERTS_DIR:/certs:ro" \
+        -v "$REPO_ROOT/nats-server.conf:/etc/nats/nats-server.conf:ro" \
+        nats:latest \
+        -c /etc/nats/nats-server.conf >/dev/null 2>&1
 
     # Wait for NATS to be ready
     NATS_READY=0

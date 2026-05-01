@@ -7,20 +7,34 @@ Subscribes to parsed next entry messages and writes them to disk
 import asyncio
 import json
 import os
+import ssl
 import sys
 from pathlib import Path
 
 import nats
 
-NATS_URL = os.environ.get("NATS_URL", "nats://docker:4222")
+NATS_URL = os.environ.get("NATS_URL", "tls://docker:4222")
+CERTS_DIR = os.environ.get("CERTS_DIR", "/tmp/nats-certs")
 INPUT_TOPIC = "messages.30.type.next.10.parsed"
 OUTPUT_DIR = "/tmp/next-entries"
 
 
+def _make_ssl_ctx() -> ssl.SSLContext:
+    """Create SSL context with client certificate for mTLS."""
+    ctx = ssl.create_default_context()
+    ctx.load_verify_locations(cafile=f"{CERTS_DIR}/rootCA.pem")
+    ctx.load_cert_chain(
+        certfile=f"{CERTS_DIR}/client.pem",
+        keyfile=f"{CERTS_DIR}/client.key"
+    )
+    return ctx
+
+
 async def _connect_with_retry(url: str) -> nats.aio.client.Client:
+    ssl_ctx = _make_ssl_ctx()
     for attempt in range(5):
         try:
-            return await nats.connect(url, connect_timeout=2)
+            return await nats.connect(url, tls=ssl_ctx, connect_timeout=2)
         except Exception as e:
             if attempt < 4:
                 print(f"Connection attempt {attempt + 1}/5 failed, retrying in 1s...")
