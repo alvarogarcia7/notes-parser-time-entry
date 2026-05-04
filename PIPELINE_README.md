@@ -10,27 +10,30 @@ A multi-stage NATS messaging pipeline for note processing with two-stage routing
 ## Architecture
 
 ```
-Google Keep Notes (JSON files)              Apple Notes
-         ↓                                        ↓
-   [Google Publisher]                    [Apple Publisher]
-         ↓                                        ↓
-   messages.10.raw.type.googlenotes    messages.10.raw.type.applenotes
-         ↓                                        ↓
-   [Google Router] ←───────────────────── → [Apple Router]
-         ↓                                        ↓
-    ┌────┴────┐                            ┌─────┴────┐
-    ↓         ↓                            ↓          ↓
-messages.20  messages.20.hn        messages.20     (other types)
-other.googlenotes   (HN detected)         other.applenotes
-              ↓
-        [HN Parser]
-              ↓
-        messages.30.type.hn.10.parsed
-              ↓
-        [HN Writer]
-              ↓
-    /tmp/nats/messages.30.type.hn.10.parsed/1.json
-    /tmp/nats/messages.30.type.hn.10.parsed/2.json
+Stage 1: Publishers          Stage 2: Routers (Type Detection)     Stage 3+: Parsers & Writers
+───────────────────────────────────────────────────────────────────────────────────────────────
+
+Google Keep Notes                  Google Router
+(JSON files)                              ↓
+     ↓                     ┌───────────────┼───────────────┐
+[Publisher]                ↓               ↓               ↓
+     ↓              messages.20    messages.20.hn    messages.20.time/training
+messages.10.raw            ↓               ↓               ↓
+type.googlenotes           ↓          [HN Parser]   [Time/Training Parsers]
+     ↓                     ↓               ↓               ↓
+     ├──────────────────────              ↓        messages.30.type.time
+     │                                    ↓        messages.30.type.training
+     │              [Apple Router]    messages.30
+Apple Notes                 ↓        type.hn.10.parsed
+(exported)                  ↓               ↓
+     ↓                      ↓          [Writers]
+[Publisher]                 ↓               ↓
+     ↓                 messages.20    /tmp/nats/*
+messages.10.raw            ↓
+type.applenotes            ↓
+                     [Writers]
+                           ↓
+                    /tmp/nats/*
 ```
 
 ## NATS Topics
@@ -56,6 +59,7 @@ other.googlenotes   (HN detected)         other.applenotes
 | `messages.30.type.hn.10.parsed` | HackerNews Parser | Parsed HackerNews metadata (item ID, URL, links) |
 | `messages.30.type.training.10.parsed` | Training Parser | Parsed workout sessions with exercises |
 | `messages.30.type.time.10.parsed` | Time Parser | Time entries |
+| `messages.30.type.next.10.parsed` | Next Entry Parser | Next task entries |
 
 ## Components
 
@@ -154,6 +158,16 @@ NATS_TOPIC=messages.20.other.googlenotes python nats_generic_writer.py
 **File**: `training-parser-antlr4/nats_writer.py`
 
 Subscribes to `messages.30.type.training.10.parsed`, writes to `/tmp/nats/messages.30.type.training.10.parsed/{N}.json`.
+
+#### Time Writer
+**File**: `time-entry-notes-parser/nats/nats_writer.py`
+
+Subscribes to `messages.30.type.time.10.parsed`, writes to `/tmp/nats/messages.30.type.time.10.parsed/{N}.json`.
+
+#### Next Entry Writer
+**File**: `notes-parser-next-entry/nats_writer.py`
+
+Subscribes to `messages.30.type.next.10.parsed`, writes to `/tmp/nats/messages.30.type.next.10.parsed/{N}.json`.
 
 ## Quick Start
 
