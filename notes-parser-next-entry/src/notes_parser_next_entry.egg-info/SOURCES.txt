@@ -1,8 +1,0 @@
-pyproject.toml
-src/notes_parser_next_entry.egg-info/PKG-INFO
-src/notes_parser_next_entry.egg-info/SOURCES.txt
-src/notes_parser_next_entry.egg-info/dependency_links.txt
-src/notes_parser_next_entry.egg-info/entry_points.txt
-src/notes_parser_next_entry.egg-info/requires.txt
-src/notes_parser_next_entry.egg-info/top_level.txt
-tests/test_next_parser.py
