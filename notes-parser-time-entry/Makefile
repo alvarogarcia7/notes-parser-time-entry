@@ -1,4 +1,4 @@
-.PHONY: sync test install clean
+.PHONY: sync test install clean help listener-time writer-time
 
 sync:
 	uv sync
@@ -13,10 +13,21 @@ clean:
 	find . -type f -name "*.pyc" -delete
 	rm -rf build/ dist/ *.egg-info/
 
-.PHONY: help
+listener-time: sync
+	uv run python nats/nats_time_listener.py
+
+writer-time: sync
+	uv run python nats/nats_writer.py
+
 help:
-	@echo "Available targets:"
-	@echo "  sync     - Install dependencies using uv"
-	@echo "  test     - Run pytest tests"
-	@echo "  install  - Install dependencies"
-	@echo "  clean    - Clean up cache and build artifacts"
+	@echo "Time Entry Parser"
+	@echo ""
+	@echo "Build & Test:"
+	@echo "  make sync          - Install dependencies using uv"
+	@echo "  make test          - Run pytest tests"
+	@echo "  make install       - Install dependencies"
+	@echo "  make clean         - Clean up cache and build artifacts"
+	@echo ""
+	@echo "Components:"
+	@echo "  make listener-time - Start time entry listener"
+	@echo "  make writer-time   - Start time entry writer"
